@@ -428,7 +428,6 @@ func (sc *SubscriptionClient) WithWebSocket(fn func(sc *SubscriptionClient) (Web
 // WithProtocol changes the subscription protocol implementation
 // By default the subscription client uses the subscriptions-transport-ws protocol
 func (sc *SubscriptionClient) WithProtocol(protocol SubscriptionProtocolType) *SubscriptionClient {
-
 	switch protocol {
 	case GraphQLWS:
 		sc.protocol = &graphqlWS{}
@@ -539,7 +538,6 @@ func (sc *SubscriptionClient) WithReadLimit(limit int64) *SubscriptionClient {
 // WithRetryStatusCodes allow retry the subscription connection when receiving one of these codes
 // the input parameter can be number string or range, e.g 4000-5000
 func (sc *SubscriptionClient) WithRetryStatusCodes(codes ...string) *SubscriptionClient {
-
 	statusCodes, err := parseInt32Ranges(codes)
 	if err != nil {
 		panic(err)
@@ -604,7 +602,6 @@ func (sc *SubscriptionClient) setClientStatus(value int32) {
 
 // initializes the websocket connection
 func (sc *SubscriptionClient) init() error {
-
 	now := time.Now()
 	ctx := sc.getContext()
 	for {
@@ -746,7 +743,6 @@ func (sc *SubscriptionClient) Unsubscribe(id string) error {
 // If the client is running, recalling this function will restart all registered subscriptions
 // If this function is run with goroutine, it can be stopped after closed
 func (sc *SubscriptionClient) Run() error {
-
 	if sc.getClientStatus() != scStatusInitializing {
 		sc.reset()
 	}
@@ -780,8 +776,10 @@ func (sc *SubscriptionClient) Run() error {
 			default:
 				var message OperationMessage
 				if err := conn.ReadJSON(&message); err != nil {
+					fmt.Println("!! ReadJSON:", err)
 					// manual EOF check
 					if err == io.EOF || strings.Contains(err.Error(), "EOF") || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer") {
+						fmt.Println("!! ReadJSON: EOF")
 						sc.errorChan <- errRetry
 						return
 					}
@@ -815,6 +813,7 @@ func (sc *SubscriptionClient) Run() error {
 
 					if sc.onError != nil {
 						if err = sc.onError(sc, err); err != nil {
+							fmt.Println("!! ReadJSON: onError")
 							// end the subscription if the callback return error
 							subContext.Cancel()
 							return
@@ -850,20 +849,25 @@ func (sc *SubscriptionClient) Run() error {
 		case <-ctx.Done():
 			return sc.close(subContext)
 		case e := <-sc.errorChan:
+			fmt.Println("!! Run: <-sc.errorChan", e)
 			if sc.getClientStatus() == scStatusClosing {
+				fmt.Println("!! Run: <-sc.errorChan: scStatusClosing")
 				return nil
 			}
 
 			// stop the subscription if the error has stop message
 			if e == ErrSubscriptionStopped {
+				fmt.Println("!! Run: <-sc.errorChan: ErrSubscriptionStopped")
 				return sc.close(subContext)
 			}
 			if e == errRetry {
+				fmt.Println("!! Run: <-sc.errorChan: errRetry")
 				return sc.Run()
 			}
 
 			if sc.onError != nil {
 				if err := sc.onError(sc, e); err != nil {
+					fmt.Println("!! Run: <-sc.errorChan: onError:", err)
 					sc.close(subContext)
 					return err
 				} else {
@@ -1071,7 +1075,6 @@ func (wh *WebsocketHandler) GetCloseStatus(err error) int32 {
 // the default constructor function to create a websocket client
 // which uses https://github.com/coder/websocket library
 func newWebsocketConn(sc *SubscriptionClient) (WebsocketConn, error) {
-
 	options := &websocket.DialOptions{
 		Subprotocols:         sc.protocol.GetSubprotocols(),
 		HTTPClient:           sc.websocketOptions.HTTPClient,
