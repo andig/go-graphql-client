@@ -748,16 +748,19 @@ func (sc *SubscriptionClient) Run() error {
 	}
 
 	if err := sc.init(); err != nil {
+		fmt.Println("!! Run: init -> return retry timeout", err)
 		return fmt.Errorf("retry timeout, %w", err)
 	}
 
 	subContext := sc.getContext()
 	if subContext == nil {
+		fmt.Println("!! Run: init -> the subscription context is nil")
 		return fmt.Errorf("the subscription context is nil")
 	}
 
 	conn := subContext.GetWebsocketConn()
 	if conn == nil {
+		fmt.Println("!! Run: init -> the websocket connection hasn't been created")
 		return fmt.Errorf("the websocket connection hasn't been created")
 	}
 
