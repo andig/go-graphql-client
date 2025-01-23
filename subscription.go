@@ -775,6 +775,7 @@ func (sc *SubscriptionClient) Run() error {
 		for {
 			select {
 			case <-ctx.Done():
+				fmt.Println("!! ctx.Done")
 				return
 			default:
 				var message OperationMessage
@@ -782,11 +783,12 @@ func (sc *SubscriptionClient) Run() error {
 					fmt.Println("!! ReadJSON:", err)
 					// manual EOF check
 					if err == io.EOF || strings.Contains(err.Error(), "EOF") || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "connection reset by peer") {
-						fmt.Println("!! ReadJSON: EOF")
+						fmt.Println("!! ReadJSON: retry EOF")
 						sc.errorChan <- errRetry
 						return
 					}
 					if errors.Is(err, context.Canceled) {
+						fmt.Println("!! ReadJSON: context.Canceled")
 						return
 					}
 
@@ -795,6 +797,7 @@ func (sc *SubscriptionClient) Run() error {
 					for _, retryCode := range subContext.retryStatusCodes {
 						if (len(retryCode) == 1 && retryCode[0] == closeStatus) ||
 							(len(retryCode) >= 2 && retryCode[0] <= closeStatus && closeStatus <= retryCode[1]) {
+							fmt.Println("!! ReadJSON: retry subContext.retryStatusCodes")
 							sc.errorChan <- errRetry
 							return
 						}
@@ -802,13 +805,16 @@ func (sc *SubscriptionClient) Run() error {
 
 					switch websocket.StatusCode(closeStatus) {
 					case websocket.StatusBadGateway, websocket.StatusNoStatusRcvd:
+						fmt.Println("!! ReadJSON: retry websocket.StatusBadGateway")
 						sc.errorChan <- errRetry
 						return
 					case websocket.StatusNormalClosure, websocket.StatusAbnormalClosure:
+						fmt.Println("!! ReadJSON: websocket.StatusNormalClosure")
 						// close event from websocket client, exiting...
 						subContext.Cancel()
 						return
 					case StatusInvalidMessage, StatusConnectionInitialisationTimeout, StatusTooManyInitialisationRequests, StatusSubscriberAlreadyExists, StatusUnauthorized:
+						fmt.Println("!! ReadJSON: StatusInvalidMessage")
 						subContext.Log(err, "server", GQL_CONNECTION_ERROR)
 						sc.errorChan <- err
 						return
@@ -850,6 +856,7 @@ func (sc *SubscriptionClient) Run() error {
 	for {
 		select {
 		case <-ctx.Done():
+			fmt.Println("!! Run: ctx.Done", ctx.Err().Error())
 			return sc.close(subContext)
 		case e := <-sc.errorChan:
 			fmt.Println("!! Run: <-sc.errorChan", e)
